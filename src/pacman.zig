@@ -10,6 +10,8 @@ const sg = sokol.gfx;
 const sapp = sokol.app;
 const sgapp = sokol.app_gfx_glue;
 const saudio = sokol.audio;
+const tracy = @import("tracy.zig");
+const trace = tracy.trace;
 
 // debugging and config options
 const AudioVolume = 0.5;
@@ -923,7 +925,7 @@ fn spriteImageGhostEyes(ghost_type: GhostType, dir: Dir) void {
 
 // the central game tick function, called at 60Hz
 fn gameTick() void {
-
+    tracy.frameMark();
     // initialize game-state once
     if (now(state.game.started)) {
         // debug: skip predule
@@ -1024,6 +1026,8 @@ fn gameTick() void {
 
 // the central Pacman- and ghost-behaviour function, called once per game tick
 fn gameUpdateActors() void {
+    const tr = trace(@src());
+    defer tr.end();
     // Pacman "AI"
     if (gamePacmanShouldMove()) {
         var actor = &state.game.pacman.actor;
@@ -1131,6 +1135,8 @@ fn gameUpdateActors() void {
 // of two important functions of the ghost AI (the other being the target selection
 // function below)
 fn gameUpdateGhostState(ghost: *Ghost) void {
+    const tr = trace(@src());
+    defer tr.end();
     var new_state = ghost.state;
     switch (ghost.state) {
         .Eyes => {
@@ -1241,6 +1247,8 @@ fn gameUpdateGhostState(ghost: *Ghost) void {
 // update the ghost's target position, this is the other important function
 // of the ghost's AI
 fn gameUpdateGhostTarget(ghost: *Ghost) void {
+    const tr = trace(@src());
+    defer tr.end();
     switch (ghost.state) {
         .Scatter => {
             // when in scatter mode, each ghost heads to its own scatter
@@ -1299,6 +1307,8 @@ fn gameUpdateGhostTarget(ghost: *Ghost) void {
 // should always happen regardless of current ghost position or blocking
 // tiles (this special case is used for movement inside the ghost house)
 fn gameUpdateGhostDir(ghost: *Ghost) bool {
+    const tr = trace(@src());
+    defer tr.end();
     switch (ghost.state) {
         .House => {
             // inside ghost house, just move up and down
@@ -1389,6 +1399,8 @@ fn gameUpdateGhostDir(ghost: *Ghost) bool {
 // Return true if Pacman should move in current game tick. When eating dots,
 // Pacman is slightly slower then ghosts, otherwise slightly faster
 fn gamePacmanShouldMove() bool {
+    const tr = trace(@src());
+    defer tr.end();
     if (now(state.game.dot_eaten)) {
         // eating a dot causes Pacman to stop for 1 tick
         return false;
@@ -1404,6 +1416,8 @@ fn gamePacmanShouldMove() bool {
 // move/don't move boolean return value, because ghosts in eye state move faster
 // than one pixel per tick
 fn gameGhostSpeed(ghost: *const Ghost) u32 {
+    const tr = trace(@src());
+    defer tr.end();
     switch (ghost.state) {
         .House, .LeaveHouse, .Frightened => {
             // inside house and when frightened at half speed
