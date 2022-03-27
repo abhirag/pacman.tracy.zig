@@ -20,6 +20,10 @@ pub fn build(b: *Builder) void {
 
 // this is the regular build for all native platforms
 fn buildNative(b: *Builder, target: CrossTarget, mode: Mode) !void {
+    const tracy = b.option([]const u8, "tracy", "Enable Tracy integration. Supply path to Tracy source");
+    const tracy_callstack = b.option(bool, "tracy-callstack", "Include callstack information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
+    const tracy_allocation = b.option(bool, "tracy-allocation", "Include allocation information with Tracy data. Does nothing if -Dtracy is not provided") orelse false;
+
     const exe = b.addExecutable("pacman", "src/pacman.zig");
     const cross_compiling_to_darwin = target.isDarwin() and (target.getOsTag() != builtin.os.tag);
     exe.setTarget(target);
@@ -29,6 +33,35 @@ fn buildNative(b: *Builder, target: CrossTarget, mode: Mode) !void {
     if (cross_compiling_to_darwin) {
         addDarwinCrossCompilePaths(b, exe);
     }
+
+    const exe_options = b.addOptions();
+    exe.addOptions("build_options", exe_options);
+    exe_options.addOption(bool, "enable_tracy", tracy != null);
+    exe_options.addOption(bool, "enable_tracy_callstack", tracy_callstack);
+    exe_options.addOption(bool, "enable_tracy_allocation", tracy_allocation);
+    if (tracy) |tracy_path| {
+        const client_cpp = fs.path.join(
+            b.allocator,
+            &[_][]const u8{ tracy_path, "TracyClient.cpp" },
+        ) catch unreachable;
+
+        // On mingw, we need to opt into windows 7+ to get some features required by tracy.
+        const tracy_c_flags: []const []const u8 = if (target.isWindows() and target.getAbi() == .gnu)
+            &[_][]const u8{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined", "-D_WIN32_WINNT=0x601" }
+        else
+            &[_][]const u8{ "-DTRACY_ENABLE=1", "-fno-sanitize=undefined" };
+
+        exe.addIncludeDir(tracy_path);
+        exe.addCSourceFile(client_cpp, tracy_c_flags);
+        exe.linkSystemLibraryName("c++");
+        exe.linkLibC();
+
+        if (target.isWindows()) {
+            exe.linkSystemLibrary("dbghelp");
+            exe.linkSystemLibrary("ws2_32");
+        }
+    }
+
     exe.install();
     b.step("run", "Run pacman").dependOn(&exe.run().step);
 
